@@ -60,7 +60,6 @@ cable_bms_ir = args.cable_bms_ir
 
 
 # Daten laden
-#data_path = '2024-05-08_cleaned_battery_data_wide_soc.csv'  # Pfad zur CSV-Datei anpassen
 df = pd.read_csv(data_path)
 
 
@@ -75,15 +74,15 @@ threshold = threshold
 
 # Filtern von Datenpunkten mit negativem Strom
 resting_current_threshold = 0.4
-resting_data = df[np.abs(df['Battery current']) <= resting_current_threshold]
-discharging_resting_data = resting_data[resting_data['Battery current'] <= 0]
+resting_data = df[np.abs(df['[BMS] Battery Current']) <= resting_current_threshold]
+discharging_resting_data = resting_data[resting_data['[BMS] Battery Current'] <= 0]
 
 
 
 # Interpolation der Ruhespannung mit Savitzky-Golay-Filter
-soc_vs_resting_voltage = resting_data.groupby('Battery State of Charge')['Battery voltage'].mean()
+soc_vs_resting_voltage = resting_data.groupby('[BMS] State of Charge BMS')['[BMS] Battery DC Voltage'].mean()
 soc_vs_resting_voltage_smoothed = savgol_filter(soc_vs_resting_voltage, window_length=11, polyorder=2)
-soc_vs_resting_voltage_interp = np.interp(df['Battery State of Charge'], soc_vs_resting_voltage.index, soc_vs_resting_voltage_smoothed)
+soc_vs_resting_voltage_interp = np.interp(df['[BMS] State of Charge BMS'], soc_vs_resting_voltage.index, soc_vs_resting_voltage_smoothed)
 
 
 
@@ -95,12 +94,12 @@ fig, ax1 = plt.subplots(figsize=(10, 6))
 color = 'tab:blue'
 ax1.set_xlabel('Zeit (Sekunden)')
 ax1.set_ylabel('Spannung (V)', color=color)
-ax1.plot(df['SECONDS'], df['Battery voltage'], color=color, label='Spannung')
+ax1.plot(df['SECONDS'], df['[BMS] Battery DC Voltage'], color=color, label='Spannung')
 
 ax1.plot(df['SECONDS'], soc_vs_resting_voltage_interp, color="red", label='Interpolierte Ruhespannung')
 
 
-#ax1.scatter(discharging_resting_data['SECONDS'], discharging_resting_data['Battery voltage'], color='red', label='Verwendete Ruhespannungspunkte', alpha=0.7)
+#ax1.scatter(discharging_resting_data['SECONDS'], discharging_resting_data['[BMS] Battery DC Voltage'], color='red', label='Verwendete Ruhespannungspunkte', alpha=0.7)
 ax1.tick_params(axis='y', labelcolor=color)
 ax1.legend(loc='upper left')
 ax1.grid(True)
@@ -109,7 +108,7 @@ ax1.grid(True)
 # ax2 = ax1.twinx()
 # color = 'tab:orange'
 # ax2.set_ylabel('Batteriestrom (A)', color=color)
-# ax2.scatter(discharging_resting_data['SECONDS'], discharging_resting_data['Battery current'], color=color, label='Zuordnungsströme', alpha=0.7)
+# ax2.scatter(discharging_resting_data['SECONDS'], discharging_resting_data['[BMS] Battery Current'], color=color, label='Zuordnungsströme', alpha=0.7)
 # ax2.tick_params(axis='y', labelcolor=color)
 # ax2.legend(loc='upper right')
 
@@ -123,15 +122,15 @@ plt.show()
 
 
 # Innenwiderstand Berechnung mit verbesserter Ruhespannung
-load_data = df[abs(df['Battery current']) > 40]  # Betrachtung von Entladedaten
-load_data['Resting voltage'] = np.interp(load_data['Battery State of Charge'], soc_vs_resting_voltage.index, soc_vs_resting_voltage_smoothed)
-load_data['Internal resistance'] = (load_data['Resting voltage'] - load_data['Battery voltage']) / load_data['Battery current']
+load_data = df[abs(df['[BMS] Battery Current']) > 40]  # Betrachtung von Entladedaten
+load_data['Resting voltage'] = np.interp(load_data['[BMS] State of Charge BMS'], soc_vs_resting_voltage.index, soc_vs_resting_voltage_smoothed)
+load_data['Internal resistance'] = (load_data['Resting voltage'] - load_data['[BMS] Battery DC Voltage']) / load_data['[BMS] Battery Current']
 load_data['Internal resistance (mOhm)'] = np.abs(load_data['Internal resistance']) / args.cells * 1000  # Umrechnung in mOhm und Normalisierung auf die Zellenzahl
 load_data['Internal resistance (mOhm)'] -=cable_bms_ir
 
 
 # Gruppieren nach Entladerate
-load_data['Discharge rate'] = np.abs(load_data['Battery current'])
+load_data['Discharge rate'] = np.abs(load_data['[BMS] Battery Current'])
 discharge_rate_bins = pd.cut(load_data['Discharge rate'], bins=10)
 load_data['Discharge rate bin'] = discharge_rate_bins
 

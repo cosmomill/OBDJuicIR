@@ -1,10 +1,17 @@
 import pandas as pd
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 
+# Argumentparser für Shell-Parameter
+parser = argparse.ArgumentParser(description="This script calculates the battery's State of Health (SoH) based on OBD data. The SoH indicates the battery's remaining capacity relative to its capacity when new.")
+parser.add_argument('--data_path', type=str, required=True, help='CSV Dateiname')
+
+args = parser.parse_args()
+
 # Load the data
-file_path = '2024-05-08_cleaned_battery_data_wide_soc.csv'
+file_path = args.data_path
 bms_data = pd.read_csv(file_path)
 
 #bms_data = bms_data.sample(n=2000, random_state=42)
@@ -12,14 +19,14 @@ bms_data = pd.read_csv(file_path)
 bms_data.sort_values(by="SECONDS",inplace=True)
 
 # Filter the data to include only discharge cycles (negative power)
-discharge_data = bms_data[bms_data['HV EV Battery Power'] < 0]
+discharge_data = bms_data[bms_data['[BMS] Battery Power'] > 0]
 discharge_data['Time Interval'] = discharge_data['SECONDS'].diff().dropna() / 3600  # Convert seconds to hours
-discharge_data['Energy Discharged (kWh)'] = discharge_data['HV EV Battery Power'] * discharge_data['Time Interval']
+discharge_data['Energy Discharged (kWh)'] = discharge_data['[BMS] Battery Power'] * discharge_data['Time Interval']
 discharge_data['Cumulative Energy Old (kWh)'] = discharge_data['Energy Discharged (kWh)'].cumsum()
 
-# Angenommen, dein DataFrame `discharge_data` enthält bereits die Spalten 'SECONDS' und 'HV EV Battery Power'
+# Angenommen, dein DataFrame `discharge_data` enthält bereits die Spalten 'SECONDS' und '[BMS] Battery Power'
 time_seconds = discharge_data['SECONDS']  # Zeitpunkte in Sekunden
-power_in_kw = discharge_data['HV EV Battery Power']  # Leistung in kW
+power_in_kw = discharge_data['[BMS] Battery Power']  # Leistung in kW
 
 # Berechnen der kumulativen Energie mit der Trapezregel
 # Da np.trapz die Integration über das gesamte Array berechnet, speichern wir die Zwischenergebnisse nach jedem Schritt
@@ -31,9 +38,9 @@ discharge_data['Cumulative Energy (kWh)'] = cumulative_energy_kwh
 print(discharge_data)
 
 # Prepare data for linear regression
-regression_data = discharge_data[['Cumulative Energy (kWh)', 'Battery State of Charge']].dropna()
+regression_data = discharge_data[['Cumulative Energy (kWh)', '[BMS] State of Charge BMS']].dropna()
 X = regression_data[['Cumulative Energy (kWh)']]  # Features (cumulative discharged energy)
-y = regression_data['Battery State of Charge']  # Target variable (SOC)
+y = regression_data['[BMS] State of Charge BMS']  # Target variable (SOC)
 
 # Create a linear regression model
 model = LinearRegression()
@@ -73,12 +80,12 @@ plt.show()
 
 # from sklearn.gaussian_process import GaussianProcessRegressor
 # from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, DotProduct, WhiteKernel
-# regression_data = discharge_data[['Cumulative Energy (kWh)', 'Battery State of Charge']].dropna()
+# regression_data = discharge_data[['Cumulative Energy (kWh)', '[BMS] State of Charge BMS']].dropna()
 
 
 # # Daten vorbereiten
 # X = regression_data[['Cumulative Energy (kWh)']].values
-# y = regression_data['Battery State of Charge'].values
+# y = regression_data['[BMS] State of Charge BMS'].values
 
 # kernel = WhiteKernel(1.0, (1e-7, 1e3)) +  C(1.0)*DotProduct(sigma_0=1.0, sigma_0_bounds=(1e-2, 1e2))  #RBF(length_scale=np.ones(1), length_scale_bounds=((1e-7, 1e3))) +
 # gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10, alpha=1e-2, normalize_y=True)
